@@ -1,25 +1,32 @@
+import random
+
 import gym
 import copy
 import Qvalue, agent, memory
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
 
 
 def run(env,
-        batch_size, agent, memory, discount, steps=200):
+        batch_size, agent, memory, discount, steps=200, episode_i=0):
     state = env.reset()
     done = False
+    acc_reward = 0
     for i in range(steps):
         if done:
             break
-        action = agent.move(state)
+        # eps should decay overtime
+        action = agent.move(state, eps=.1)
         next_state, reward, done, _ = env.step(action)
+        acc_reward += reward
         memory.add((state, action, next_state, reward, done))
+        if episode_i > 800:
+            env.render()
 
         if len(memory.memory) > batch_size:
-            print("length:", len(memory.memory))
             state_m, action_m, next_state_m, reward_m, done_m = zip(*memory.sample(batch_size))
             state_m = np.array(state_m)
             action_m = np.array(action_m)
@@ -39,6 +46,9 @@ def run(env,
                 loss = agent.train(states=state_m, targets=targets)
             state = copy.copy(next_state)
 
+    print("acc_reward:", acc_reward / i)
+    return acc_reward / i
+
 
 env = gym.make("MountainCar-v0")
 
@@ -47,11 +57,17 @@ state_dim = env.observation_space.high.shape[0]
 print("n_actions:", n_actions, "state_dim", state_dim)
 batch_size = 64
 qvalue_model = Qvalue.Qvalue(state_dim=state_dim, n_actions=n_actions, batch_size=64, h1_n=512, h2_n=256)
-agent = agent.Agent(actions=n_actions, q_value_model=qvalue_model, eps=.1)
+agent = agent.Agent(actions=n_actions, q_value_model=qvalue_model)
 memory = memory.RandomMemory(max_size=1024)
 
 discount = .95
+rewards = []
 for episode_i in range(1000):
     print("episode_i:", episode_i)
-    run(env,
-        batch_size, agent, memory, discount, steps=200)
+
+    rewards.append(run(env,
+                       batch_size, agent, memory, discount, steps=200, episode_i=episode_i))
+plt.plot(rewards)
+plt.xlabel("episode:")
+plt.ylabel("reward")
+plt.show()

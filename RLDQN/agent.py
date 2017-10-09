@@ -3,12 +3,11 @@ import random
 
 
 class Agent:
-    def __init__(self, actions, q_value_model, eps=.1):
+    def __init__(self, actions, q_value_model):
         self.actions = actions  # available action
         self.q_value = q_value_model
-        self.eps = eps
 
-    def move(self, state):
+    def move(self, state, eps=.1):
         action_values = self.q_value.predict([state])
         if random.random() > self.eps:
             return np.argmax(action_values)
