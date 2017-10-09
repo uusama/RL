@@ -9,21 +9,24 @@ import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
 
+epslons = np.linspace(.9, .1, 10000)
+
 
 def run(env,
-        batch_size, agent, memory, discount, steps=200, episode_i=0):
+        batch_size, agent, memory, discount, steps=300, episode_i=0, eps=.9):
     state = env.reset()
     done = False
-    acc_reward = 0
+    acc_reward = 0.0
+    loss = 0.0
     for i in range(steps):
         if done:
             break
         # eps should decay overtime
-        action = agent.move(state, eps=.1)
+        action = agent.move(state, eps=.9)
         next_state, reward, done, _ = env.step(action)
         acc_reward += reward
         memory.add((state, action, next_state, reward, done))
-        if episode_i > 800:
+        if episode_i > 900000:
             env.render()
 
         if len(memory.memory) > batch_size:
@@ -43,11 +46,11 @@ def run(env,
             # assign the actual reward to the taken action
             for i, action in enumerate(action_m):
                 targets[i, action] = actual_target_m[i]
-                loss = agent.train(states=state_m, targets=targets)
+            loss = agent.train(states=state_m, targets=targets)
             state = copy.copy(next_state)
 
-    print("acc_reward:", acc_reward / i)
-    return acc_reward / i
+    print("acc_reward:", acc_reward)
+    return acc_reward, i, loss
 
 
 env = gym.make("MountainCar-v0")
@@ -62,12 +65,32 @@ memory = memory.RandomMemory(max_size=1024)
 
 discount = .95
 rewards = []
-for episode_i in range(1000):
+episodes_end = []
+losses = []
+eps = .9
+reward, episode_end, loss = 0., 0., 0.
+for episode_i in range(1000000):
     print("episode_i:", episode_i)
+    if episode_i % 1000 == 0:
+        eps = epslons[int(episode_i / 10000)]
+        print("epslons:", eps)
+        reward, episode_end, loss = run(env,
+                                        batch_size, agent, memory, discount, steps=200, episode_i=episode_i, eps=eps)
+    rewards.append(reward)
+    episodes_end.append(episode_end)
+    losses.append(loss)
 
-    rewards.append(run(env,
-                       batch_size, agent, memory, discount, steps=200, episode_i=episode_i))
 plt.plot(rewards)
 plt.xlabel("episode:")
 plt.ylabel("reward")
+plt.show()
+
+plt.plot(episodes_end)
+plt.xlabel("episode:")
+plt.ylabel("episodes_end")
+plt.show()
+
+plt.plot(losses)
+plt.xlabel("episode:")
+plt.ylabel("loss")
 plt.show()
