@@ -1,7 +1,12 @@
 import random
 
 import gym
-import copy
+import copy, sys
+
+import sklearn
+import sklearn.pipeline
+from sklearn.kernel_approximation import RBFSampler
+
 import Qvalue, agent, memory
 import numpy as np
 import tensorflow as tf
@@ -9,11 +14,40 @@ import matplotlib.pyplot as plt
 
 from tensorflow.examples.tutorials.mnist import input_data
 
-epslons = np.linspace(.9, .1, 10000)
+epslons = np.linspace(.9, .0001, 10)
+env = gym.make("MountainCar-v0")
+
+# Feature Preprocessing: Normalize to zero mean and unit variance
+# We use a few samples from the observation space to do this
+observation_examples = np.array([env.observation_space.sample() for x in range(10000)])
+scaler = sklearn.preprocessing.StandardScaler()
+scaler.fit(observation_examples)
+
+# Used to converte a state to a featurizes represenation.
+# We use RBF kernels with different variances to cover different parts of the space
+featurizer = sklearn.pipeline.FeatureUnion([
+    ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
+    ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
+    ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
+    ("rbf4", RBFSampler(gamma=0.5, n_components=100))
+])
+featurizer.fit(scaler.transform(observation_examples))
+
+
+def featurize_state(state):
+    """
+    Returns the featurized representation for a state.
+    """
+    scaled = scaler.transform([state])
+    # print("scaled state:", scaled.shape, scaled)
+    # featurized = featurizer.transform(scaled)
+    # print("featurized state:", featurized.shape)
+
+    return scaled[0]
 
 
 def run(env,
-        batch_size, agent, memory, discount, steps=300, episode_i=0, eps=.9):
+        batch_size, agent, memory, discount, steps=300, episode_i=0, eps=.9, render=False,normalize=False):
     state = env.reset()
     done = False
     acc_reward = 0.0
@@ -23,10 +57,14 @@ def run(env,
             break
         # eps should decay overtime
         action = agent.move(state, eps=.9)
+        # print("state:",state.shape,state)
+        if normalize:
+            state = featurize_state(state)
+
         next_state, reward, done, _ = env.step(action)
         acc_reward += reward
         memory.add((state, action, next_state, reward, done))
-        if episode_i > 900000:
+        if render:
             env.render()
 
         if len(memory.memory) > batch_size:
@@ -49,11 +87,9 @@ def run(env,
             loss = agent.train(states=state_m, targets=targets)
             state = copy.copy(next_state)
 
-    print("acc_reward:", acc_reward)
+    # print("acc_reward:", acc_reward)
     return acc_reward, i, loss
 
-
-env = gym.make("MountainCar-v0")
 
 n_actions = env.action_space.n
 state_dim = env.observation_space.high.shape[0]
@@ -69,16 +105,27 @@ episodes_end = []
 losses = []
 eps = .9
 reward, episode_end, loss = 0., 0., 0.
-for episode_i in range(1000000):
-    print("episode_i:", episode_i)
-    if episode_i % 1000 == 0:
-        eps = epslons[int(episode_i / 10000)]
-        print("epslons:", eps)
+render = False
+print(reward)
+while reward < 20.:
+    for episode_i in range(1000):
+        # print("episode_i:", episode_i)
+        if episode_i % 100 == 0:
+            eps = epslons[int(episode_i / 100)]
+            print("\rEpisode/eps: reward {}/{} : {}.".format(episode_i, eps, reward), end="")
+            sys.stdout.flush()
+
+        # if episode_i > 9000:
+        if 0 > reward > -100:
+            render = True
         reward, episode_end, loss = run(env,
-                                        batch_size, agent, memory, discount, steps=200, episode_i=episode_i, eps=eps)
-    rewards.append(reward)
-    episodes_end.append(episode_end)
-    losses.append(loss)
+                                        batch_size, agent, memory, discount, steps=200, episode_i=episode_i, eps=eps,
+                                        render=render,normalize=True)
+        rewards.append(reward)
+        episodes_end.append(episode_end)
+        losses.append(loss)
+        sys.stdout.flush()
+    print("reward:", reward)
 
 plt.plot(rewards)
 plt.xlabel("episode:")
