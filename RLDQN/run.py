@@ -47,7 +47,7 @@ def featurize_state(state):
 
 
 def run(env,
-        batch_size, agent, memory, discount, steps=300, episode_i=0, eps=.9, render=False,normalize=False):
+        batch_size, agent, memory, discount, steps=300, episode_i=0, eps=.9, render=False, normalize=False):
     state = env.reset()
     done = False
     acc_reward = 0.0
@@ -95,7 +95,9 @@ n_actions = env.action_space.n
 state_dim = env.observation_space.high.shape[0]
 print("n_actions:", n_actions, "state_dim", state_dim)
 batch_size = 64
-qvalue_model = Qvalue.Qvalue(state_dim=state_dim, n_actions=n_actions, batch_size=64, h1_n=512, h2_n=256)
+checkpoint_path = "/tmp/my_dqn.ckpt"
+qvalue_model = Qvalue.Qvalue(state_dim=state_dim, n_actions=n_actions, batch_size=64, h1_n=512, h2_n=256,
+                             checkpoint_path=checkpoint_path)
 agent = agent.Agent(actions=n_actions, q_value_model=qvalue_model)
 memory = memory.RandomMemory(max_size=1024)
 
@@ -115,12 +117,15 @@ while reward < 20.:
             print("\rEpisode/eps: reward {}/{} : {}.".format(episode_i, eps, reward), end="")
             sys.stdout.flush()
 
+            if episode_i != 0:
+                qvalue_model.saver.save(qvalue_model.session, checkpoint_path)
+
         # if episode_i > 9000:
         if 0 > reward > -100:
             render = True
         reward, episode_end, loss = run(env,
                                         batch_size, agent, memory, discount, steps=200, episode_i=episode_i, eps=eps,
-                                        render=render,normalize=True)
+                                        render=render, normalize=True)
         rewards.append(reward)
         episodes_end.append(episode_end)
         losses.append(loss)

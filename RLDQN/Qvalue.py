@@ -1,12 +1,18 @@
+import os
+
 import tensorflow as tf
 from tensorflow.contrib.layers import fully_connected
 
 
 class Qvalue:
-    def __init__(self, state_dim=2, n_actions=3, batch_size=64, h1_n=512, h2_n=256):
+    def __init__(self, state_dim=2, n_actions=3, batch_size=64, h1_n=512, h2_n=256, checkpoint_path="/tmp/my_dqn.ckpt"):
         learning_rate = 0.01
+        self.checkpoint_path = checkpoint_path
         self.graph = tf.Graph()
-        with self.graph.as_default():
+
+        with self.graph.as_default() as sess:
+            # if os.path.isfile(checkpoint_path):
+            #     self.saver.restore(self.sess, checkpoint_path)
             with tf.name_scope("DNN"):
                 # TODO:Replace None with batch_size
                 # TODO: solve diff between predict for 1 & predict for batch
@@ -35,12 +41,20 @@ class Qvalue:
 
             self.init = tf.global_variables_initializer()
             self.saver = tf.train.Saver()
+
         self.session = None
 
-    def inti_tf_session(self):
+    def inti_tf_session(self, checkpoint_path):
         if self.session is None:
             self.session = tf.Session(graph=self.graph)
             self.session.run(self.init)
+            # with tf.Session(graph=self.graph) as sess:
+            # self.session = sess
+            # sess.run(self.init)
+            if os.path.isfile(checkpoint_path):
+                print("restoring:", os.path.isfile(checkpoint_path))
+                print("os.path.isfile(checkpoint_path)", os.path.isfile(checkpoint_path))
+                self.saver.restore(self.session, checkpoint_path)
 
     def model(self, data, h1_n, h2_n, n_actions):
         hidden1 = fully_connected(data, h1_n)
@@ -48,12 +62,12 @@ class Qvalue:
         return fully_connected(hidden2, n_actions)
 
     def predict(self, states):
-        self.inti_tf_session()
+        self.inti_tf_session(self.checkpoint_path)
         feed_dict = {self.test_x: states}
 
         return self.session.run(self.test_y, feed_dict=feed_dict)
 
     def train(self, states, targets):
-        self.inti_tf_session()
+        self.inti_tf_session(self.checkpoint_path)
         feed_dict = {self.x: states, self.targets: targets}
         return self.session.run(self.loss, feed_dict=feed_dict)

@@ -10,8 +10,11 @@ class Agent:
     def move(self, state, eps=.1):
         action_values = self.q_value.predict([state])
         if random.random() < eps:
+            # print("taken an action by the Q")
             return np.argmax(action_values)
         else:
+            # print("taken an action by the rand")
+
             return np.random.choice(self.actions)
 
     def train(self, states, targets):
